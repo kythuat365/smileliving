@@ -1,0 +1,388 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script>```html
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xác minh Chủ sở hữu/Khách thuê</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .screen { display: none; }
+        .screen.active { display: block; }
+        .mobile-frame { max-width: 375px; margin: auto; border: 2px solid #ccc; }
+        .desktop-frame { max-width: 1440px; margin: auto; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Tab chuyển đổi giữa Resident App và PMS Website -->
+    <div class="flex justify-center space-x-4 p-4 bg-white shadow">
+        <button onclick="showPlatform('resident')" class="px-4 py-2 bg-blue-500 text-white rounded">Resident App</button>
+        <button onclick="showPlatform('pms')" class="px-4 py-2 bg-gray-500 text-white rounded">PMS Website</button>
+    </div>
+
+    <!-- Resident App Screens -->
+    <div id="resident" class="platform mobile-frame">
+        <!-- Màn hình 1: Nộp yêu cầu xác minh -->
+        <div id="resident-submit" class="screen active p-4 bg-white min-h-screen">
+            <div class="flex justify-between items-center mb-4">
+                <button onclick="goBack('resident')" class="text-blue-500">←</button>
+                <h1 class="text-xl font-bold">Nộp yêu cầu xác minh</h1>
+                <select class="border rounded p-1">
+                    <option>VN</option>
+                    <option>EN</option>
+                </select>
+            </div>
+            <form class="space-y-4">
+                <div>
+                    <label class="block text-sm">Họ tên *</label>
+                    <input type="text" placeholder="Nguyễn Văn X" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm">CCCD * <span class="text-gray-500 text-xs">(Phải khớp tài liệu)</span></label>
+                    <input type="text" placeholder="123456789001" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm">Số điện thoại * <span class="text-gray-500 text-xs">(Dùng để gửi OTP)</span></label>
+                    <input type="text" placeholder="0901234561" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm">Email</label>
+                    <input type="email" placeholder="x@example.com" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm">Mã căn hộ *</label>
+                    <select class="w-full p-2 border rounded">
+                        <option>CH0101</option>
+                        <option>CH0102</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm">Loại cư dân *</label>
+                    <select class="w-full p-2 border rounded">
+                        <option>Chủ sở hữu</option>
+                        <option>Khách thuê</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm">Loại tài liệu *</label>
+                    <select class="w-full p-2 border rounded">
+                        <option>Sổ hồng</option>
+                        <option>Hợp đồng mua bán</option>
+                        <option>Hợp đồng thuê</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm">Tải file tài liệu * (PDF/JPG, tối đa 10MB)</label>
+                    <input type="file" accept=".pdf,.jpg" class="w-full p-2 border rounded">
+                    <p class="text-sm text-gray-500">so_hong.pdf</p>
+                </div>
+                <div class="flex space-x-4">
+                    <button type="button" onclick="navigate('resident-otp')" class="px-4 py-2 bg-blue-500 text-white rounded">Gửi OTP</button>
+                    <button type="button" onclick="goBack('resident')" class="px-4 py-2 bg-gray-500 text-white rounded">Hủy</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Màn hình 2: Xác minh OTP -->
+        <div id="resident-otp" class="screen p-4 bg-white min-h-screen">
+            <div class="flex justify-between items-center mb-4">
+                <button onclick="navigate('resident-submit')" class="text-blue-500">←</button>
+                <h1 class="text-xl font-bold">Xác minh danh tính</h1>
+                <span></span>
+            </div>
+            <p class="text-sm mb-4">Mã OTP đã được gửi đến 0901234561</p>
+            <div class="flex space-x-2 mb-4">
+                <input type="text" maxlength="1" class="w-12 p-2 border rounded text-center">
+                <input type="text" maxlength="1" class="w-12 p-2 border rounded text-center">
+                <input type="text" maxlength="1" class="w-12 p-2 border rounded text-center">
+                <input type="text" maxlength="1" class="w-12 p-2 border rounded text-center">
+                <input type="text" maxlength="1" class="w-12 p-2 border rounded text-center">
+                <input type="text" maxlength="1" class="w-12 p-2 border rounded text-center">
+            </div>
+            <p class="text-sm text-gray-500 mb-4">OTP hết hạn sau 5:00</p>
+            <div class="flex space-x-4">
+                <button type="button" onclick="navigate('resident-status')" class="px-4 py-2 bg-blue-500 text-white rounded">Xác minh</button>
+                <button type="button" class="px-4 py-2 bg-gray-500 text-white rounded">Gửi lại OTP</button>
+            </div>
+        </div>
+
+        <!-- Màn hình 3: Trạng thái xác minh -->
+        <div id="resident-status" class="screen p-4 bg-white min-h-screen">
+            <div class="flex justify-between items-center mb-4">
+                <button onclick="goBack('resident')" class="text-blue-500">←</button>
+                <h1 class="text-xl font-bold">Trạng thái xác minh</h1>
+                <span></span>
+            </div>
+            <div class="border p-4 rounded mb-4">
+                <p><strong>Mã yêu cầu:</strong> VM0001</p>
+                <p><strong>Mã căn hộ:</strong> CH0101</p>
+                <p><strong>Loại cư dân:</strong> Chủ sở hữu</p>
+                <p><strong>Trạng thái:</strong> <span class="text-green-500">Đã xác minh</span></p>
+                <p><strong>Ngày nộp:</strong> 09/07/2025</p>
+                <button onclick="navigate('resident-details')" class="text-blue-500 underline">Xem chi tiết</button>
+            </div>
+            <div class="border p-4 rounded">
+                <p><strong>Mã yêu cầu:</strong> VM0002</p>
+                <p><strong>Mã căn hộ:</strong> CH0102</p>
+                <p><strong>Loại cư dân:</strong> Khách thuê</p>
+                <p><strong>Trạng thái:</strong> <span class="text-red-500">Từ chối</span></p>
+                <p><strong>Lý do từ chối:</strong> Hợp đồng thuê không công chứng</p>
+                <button onclick="navigate('resident-submit')" class="text-blue-500 underline">Nộp lại tài liệu</button>
+            </div>
+        </div>
+
+        <!-- Màn hình 4: Thông báo kết quả -->
+        <div id="resident-details" class="screen p-4 bg-white min-h-screen">
+            <div class="flex justify-between items-center mb-4">
+                <button onclick="navigate('resident-status')" class="text-blue-500">←</button>
+                <h1 class="text-xl font-bold">Thông báo</h1>
+                <span></span>
+            </div>
+            <div class="border p-4 rounded">
+                <p class="text-green-500">Yêu cầu xác minh của bạn (VM0001) đã được phê duyệt. Bạn có thể đăng ký tài khoản Resident App.</p>
+                <button onclick="navigate('resident-status')" class="mt-4 px-4 py-2 bg-gray-500 text-white rounded">Quay lại</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PMS Website Screens -->
+    <div id="pms" class="platform desktop-frame hidden">
+        <!-- Màn hình 1: Danh sách yêu cầu xác minh -->
+        <div id="pms-list" class="screen active p-6 bg-white">
+            <div class="flex justify-between items-center mb-4">
+                <h1 class="text-2xl font-bold">Quản lý yêu cầu xác minh</h1>
+                <div class="flex space-x-2">
+                    <select class="border rounded p-2">
+                        <option>VN</option>
+                        <option>EN</option>
+                    </select>
+                    <button class="px-4 py-2 bg-gray-500 text-white rounded">Đăng xuất</button>
+                </div>
+            </div>
+            <div class="flex space-x-4 mb-4">
+                <select class="border rounded p-2">
+                    <option>Tất cả</option>
+                    <option>Chờ xử lý</option>
+                    <option>Đã xác minh</option>
+                    <option>Từ chối</option>
+                </select>
+                <select class="border rounded p-2">
+                    <option>Tất cả</option>
+                    <option>Chủ sở hữu</option>
+                    <option>Khách thuê</option>
+                </select>
+                <input type="text" placeholder="Mã căn hộ" class="border rounded p-2">
+                <input type="date" class="border rounded p-2">
+                <button class="px-4 py-2 bg-blue-500 text-white rounded">Tìm kiếm</button>
+            </div>
+            <table class="w-full border-collapse">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="p-2">Mã yêu cầu</th>
+                        <th class="p-2">Họ tên</th>
+                        <th class="p-2">CCCD</th>
+                        <th class="p-2">Mã căn hộ</th>
+                        <th class="p-2">Loại cư dân</th>
+                        <th class="p-2">Loại tài liệu</th>
+                        <th class="p-2">Trạng thái</th>
+                        <th class="p-2">Ngày nộp</th>
+                        <th class="p-2">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="p-2">VM0001</td>
+                        <td class="p-2">Nguyễn Văn X</td>
+                        <td class="p-2">****789001</td>
+                        <td class="p-2">CH0101</td>
+                        <td class="p-2">Chủ sở hữu</td>
+                        <td class="p-2">Sổ hồng</td>
+                        <td class="p-2 text-green-500">Đã xác minh</td>
+                        <td class="p-2">09/07/2025</td>
+                        <td class="p-2"><button onclick="navigate('pms-detail')" class="text-blue-500">Xem chi tiết</button></td>
+                    </tr>
+                    <tr>
+                        <td class="p-2">VM0002</td>
+                        <td class="p-2">Trần Văn D</td>
+                        <td class="p-2">****789004</td>
+                        <td class="p-2">CH0102</td>
+                        <td class="p-2">Khách thuê</td>
+                        <td class="p-2">Hợp đồng thuê</td>
+                        <td class="p-2 text-red-500">Từ chối</td>
+                        <td class="p-2">09/07/2025</td>
+                        <td class="p-2"><button onclick="navigate('pms-detail')" class="text-blue-500">Xem chi tiết</button></td>
+                    </tr>
+                </tbody>
+            </table>
+            <button class="mt-4 px-4 py-2 bg-blue-500 text-white rounded">Xuất báo cáo</button>
+        </div>
+
+        <!-- Màn hình 2: Chi tiết yêu cầu xác minh -->
+        <div id="pms-detail" class="screen p-6 bg-white">
+            <div class="flex justify-between items-center mb-4">
+                <h1 class="text-2xl font-bold">Chi tiết yêu cầu (VM0001)</h1>
+                <button onclick="navigate('pms-list')" class="text-blue-500">← Quay lại</button>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <h2 class="text-lg font-semibold mb-2">Thông tin yêu cầu</h2>
+                    <p><strong>Họ tên:</strong> Nguyễn Văn X</p>
+                    <p><strong>CCCD:</strong> ****789001</p>
+                    <p><strong>Số điện thoại:</strong> 0901234561</p>
+                    <p><strong>Email:</strong> x@example.com</p>
+                    <p><strong>Mã căn hộ:</strong> CH0101</p>
+                    <p><strong>Loại cư dân:</strong> Chủ sở hữu</p>
+                    <p><strong>Loại tài liệu:</strong> Sổ hồng</p>
+                    <p><strong>Ngày nộp:</strong> 09/07/2025</p>
+                    <p><strong>File:</strong> <a href="#" class="text-blue-500">Tải xuống</a></p>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold mb-2">Xử lý</h2>
+                    <div class="mb-4">
+                        <label class="block text-sm">Trạng thái xác minh</label>
+                        <select class="w-full p-2 border rounded">
+                            <option>Chờ xử lý</option>
+                            <option>Đã xác minh</option>
+                            <option>Từ chối</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm">Lý do từ chối</label>
+                        <textarea class="w-full p-2 border rounded" rows="4"></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm">Người xử lý</label>
+                        <input type="text" value="Nguyễn Văn Quản lý" class="w-full p-2 border rounded" readonly>
+                    </div>
+                    <div class="flex space-x-4">
+                        <button onclick="navigate('pms-list')" class="px-4 py-2 bg-blue-500 text-white rounded">Lưu</button>
+                        <button onclick="navigate('pms-list')" class="px-4 py-2 bg-gray-500 text-white rounded">Hủy</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Màn hình 3: Lịch sử xử lý -->
+        <div id="pms-history" class="screen p-6 bg-white">
+            <div class="flex justify-between items-center mb-4">
+                <h1 class="text-2xl font-bold">Lịch sử xử lý yêu cầu xác minh</h1>
+                <button onclick="navigate('pms-list')" class="text-blue-500">← Quay lại</button>
+            </div>
+            <div class="flex space-x-4 mb-4">
+                <input type="date" class="border rounded p-2">
+                <select class="border rounded p-2">
+                    <option>Tất cả</option>
+                    <option>Nguyễn Văn Quản lý</option>
+                </select>
+                <select class="border rounded p-2">
+                    <option>Tất cả</option>
+                    <option>Chờ xử lý</option>
+                    <option>Đã xác minh</option>
+                    <option>Từ chối</option>
+                </select>
+                <button class="px-4 py-2 bg-blue-500 text-white rounded">Tìm kiếm</button>
+            </div>
+            <table class="w-full border-collapse">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="p-2">Mã yêu cầu</th>
+                        <th class="p-2">Họ tên</th>
+                        <th class="p-2">Mã căn hộ</th>
+                        <th class="p-2">Trạng thái</th>
+                        <th class="p-2">Ngày xử lý</th>
+                        <th class="p-2">Người xử lý</th>
+                        <th class="p-2">Lý do từ chối</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="p-2">VM0001</td>
+                        <td class="p-2">Nguyễn Văn X</td>
+                        <td class="p-2">CH0101</td>
+                        <td class="p-2 text-green-500">Đã xác minh</td>
+                        <td class="p-2">09/07/2025</td>
+                        <td class="p-2">Nguyễn Văn Quản lý</td>
+                        <td class="p-2">-</td>
+                    </tr>
+                    <tr>
+                        <td class="p-2">VM0002</td>
+                        <td class="p-2">Trần Văn D</td>
+                        <td class="p-2">CH0102</td>
+                        <td class="p-2 text-red-500">Từ chối</td>
+                        <td class="p-2">09/07/2025</td>
+                        <td class="p-2">Nguyễn Văn Quản lý</td>
+                        <td class="p-2">Hợp đồng thuê không công chứng</td>
+                    </tr>
+                </tbody>
+            </table>
+            <button class="mt-4 px-4 py-2 bg-blue-500 text-white rounded">Xuất báo cáo</button>
+        </div>
+    </div>
+
+    <script>
+        function showPlatform(platform) {
+            document.querySelectorAll('.platform').forEach(p => p.classList.add('hidden'));
+            document.getElementById(platform).classList.remove('hidden');
+            // Reset to default screen for each platform
+            if (platform === 'resident') {
+                navigate('resident-submit');
+            } else {
+                navigate('pms-list');
+            }
+        }
+
+        function navigate(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function goBack(platform) {
+            if (platform === 'resident') {
+                navigate('resident-submit');
+            } else {
+                navigate('pms-list');
+            }
+        }
+    </script>
+</body>
+</html>
+```
